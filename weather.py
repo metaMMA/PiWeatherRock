@@ -52,6 +52,9 @@ import requests
 
 # local imports
 import config
+import weather_rock.display as display
+import weather_rock.draw as draw
+import weather_rock.utils as utils
 
 # globals
 MODE = 'd'  # Default to weather mode.
@@ -59,136 +62,7 @@ MOUSE_X, MOUSE_Y = 0, 0
 UNICODE_DEGREE = u'\xb0'
 
 
-def exit_gracefully(signum, frame):
-    sys.exit(0)
-
-
-signal.signal(signal.SIGTERM, exit_gracefully)
-
-
-def deg_to_compass(degrees):
-    val = int((degrees/22.5)+.5)
-    dirs = ["N", "NNE", "NE", "ENE",
-            "E", "ESE", "SE", "SSE",
-            "S", "SSW", "SW", "WSW",
-            "W", "WNW", "NW", "NNW"]
-    return dirs[(val % 16)]
-
-
-def units_decoder(units):
-    """
-    https://darksky.net/dev/docs has lists out what each
-    unit is. The method below is just a codified version
-    of what is on that page.
-    """
-    si_dict = {
-        'nearestStormDistance': 'Kilometers',
-        'precipIntensity': 'Millimeters per hour',
-        'precipIntensityMax': 'Millimeters per hour',
-        'precipAccumulation': 'Centimeters',
-        'temperature': 'Degrees Celsius',
-        'temperatureMin': 'Degrees Celsius',
-        'temperatureMax': 'Degrees Celsius',
-        'apparentTemperature': 'Degrees Celsius',
-        'dewPoint': 'Degrees Celsius',
-        'windSpeed': 'Meters per second',
-        'windGust': 'Meters per second',
-        'pressure': 'Hectopascals',
-        'visibility': 'Kilometers',
-    }
-    ca_dict = si_dict.copy()
-    ca_dict['windSpeed'] = 'Kilometers per hour'
-    ca_dict['windGust'] = 'Kilometers per hour'
-    uk2_dict = si_dict.copy()
-    uk2_dict['nearestStormDistance'] = 'Miles'
-    uk2_dict['visibility'] = 'Miles'
-    uk2_dict['windSpeed'] = 'Miles per hour'
-    uk2_dict['windGust'] = 'Miles per hour'
-    us_dict = {
-        'nearestStormDistance': 'Miles',
-        'precipIntensity': 'Inches per hour',
-        'precipIntensityMax': 'Inches per hour',
-        'precipAccumulation': 'Inches',
-        'temperature': 'Degrees Fahrenheit',
-        'temperatureMin': 'Degrees Fahrenheit',
-        'temperatureMax': 'Degrees Fahrenheit',
-        'apparentTemperature': 'Degrees Fahrenheit',
-        'dewPoint': 'Degrees Fahrenheit',
-        'windSpeed': 'Miles per hour',
-        'windGust': 'Miles per hour',
-        'pressure': 'Millibars',
-        'visibility': 'Miles',
-    }
-    switcher = {
-        'ca': ca_dict,
-        'uk2': uk2_dict,
-        'us': us_dict,
-        'si': si_dict,
-    }
-    return switcher.get(units, "Invalid unit name")
-
-
-def get_abbreviation(phrase):
-    abbreviation = ''.join(item[0].lower() for item in phrase.split())
-    return abbreviation
-
-
-def get_windspeed_abbreviation(unit=config.UNITS):
-    return get_abbreviation(units_decoder(unit)['windSpeed'])
-
-
-def get_temperature_letter(unit=config.UNITS):
-    return units_decoder(unit)['temperature'].split(' ')[-1][0].upper()
-
-
-
-def icon_mapping(icon, size):
-    """
-    https://darksky.net/dev/docs has this to say about icons:
-    icon optional
-    A machine-readable text summary of this data point, suitable for selecting an
-    icon for display. If defined, this property will have one of the following
-    values: clear-day, clear-night, rain, snow, sleet, wind, fog, cloudy,
-    partly-cloudy-day, or partly-cloudy-night. (Developers should ensure that a
-    sensible default is defined, as additional values, such as hail, thunderstorm,
-    or tornado, may be defined in the future.)
-
-    Based on that, this method will map the Dark Sky icon name to the name of an
-    icon in this project.
-    """
-    if icon == 'clear-day':
-        icon_path = 'icons/{}/clear.png'.format(size)
-    elif icon == 'clear-night':
-        icon_path = 'icons/{}/nt_clear.png'.format(size)
-    elif icon == 'rain':
-        icon_path = 'icons/{}/rain.png'.format(size)
-    elif icon == 'snow':
-        icon_path = 'icons/{}/snow.png'.format(size)
-    elif icon == 'sleet':
-        icon_path = 'icons/{}/sleet.png'.format(size)
-    elif icon == 'wind':
-        icon_path = 'icons/alt_icons/{}/wind.png'.format(size)
-    elif icon == 'fog':
-        icon_path = 'icons/{}/fog.png'.format(size)
-    elif icon == 'cloudy':
-        icon_path = 'icons/{}/cloudy.png'.format(size)
-    elif icon == 'partly-cloudy-day':
-        icon_path = 'icons/{}/partlycloudy.png'.format(size)
-    elif icon == 'partly-cloudy-night':
-        icon_path = 'icons/{}/nt_partlycloudy.png'.format(size)
-    else:
-        icon_path = 'icons/{}/unknown.png'.format(size)
-
-    # print(icon_path)
-    return icon_path
-
-
-# Helper function to which takes seconds and returns (hours, minutes).
-# ###########################################################################
-def stot(sec):
-    mins = sec.seconds // 60
-    hrs = mins // 60
-    return (hrs, mins % 60)
+signal.signal(signal.SIGTERM, utils.exit_gracefully)
 
 
 ###############################################################################
@@ -327,142 +201,6 @@ class MyDisplay:
                 return False
         return True
 
-    def display_conditions_line(self, label, cond, is_temp, multiplier=None):
-        y_start_position = 0.17
-        line_spacing_gap = 0.065
-        conditions_text_height = 0.05
-        degree_symbol_height = 0.03
-        degree_symbol_y_offset = 0.001
-        x_start_position = 0.52
-        second_column_x_start_position = 0.69
-        text_color = (255, 255, 255)
-        font_name = "freesans"
-
-        if multiplier is None:
-            y_start = y_start_position
-        else:
-            y_start = (y_start_position + line_spacing_gap * multiplier)
-
-        conditions_font = pygame.font.SysFont(
-            font_name, int(self.ymax * conditions_text_height), bold=1)
-
-        txt = conditions_font.render(str(label), True, text_color)
-
-        self.screen.blit(
-            txt, (self.xmax * x_start_position, self.ymax * y_start))
-
-        txt = conditions_font.render(str(cond), True, text_color)
-        self.screen.blit(txt, (self.xmax * second_column_x_start_position,
-                               self.ymax * y_start))
-
-        if is_temp:
-            txt_x = txt.get_size()[0]
-            degree_font = pygame.font.SysFont(
-                font_name, int(self.ymax * degree_symbol_height), bold=1)
-            degree_txt = degree_font.render(UNICODE_DEGREE, True, text_color)
-            self.screen.blit(degree_txt, (
-                self.xmax * second_column_x_start_position + txt_x * 1.01,
-                self.ymax * (y_start + degree_symbol_y_offset)))
-            degree_letter = conditions_font.render(get_temperature_letter(),
-                                                   True, text_color)
-            degree_letter_x = degree_letter.get_size()[0]
-            self.screen.blit(degree_letter, (
-                self.xmax * second_column_x_start_position +
-                txt_x + degree_letter_x * 1.01,
-                self.ymax * (y_start + degree_symbol_y_offset)))
-
-    def display_subwindow(self, data, day, c_times):
-        subwindow_centers = 0.125
-        subwindows_y_start_position = 0.530
-        line_spacing_gap = 0.065
-        rain_percent_line_offset = 5.95
-        rain_present_text_height = 0.060
-        text_color = (255, 255, 255)
-        font_name = "freesans"
-
-        forecast_font = pygame.font.SysFont(
-            font_name, int(self.ymax * self.subwindow_text_height), bold=1)
-        rpfont = pygame.font.SysFont(
-            font_name, int(self.ymax * rain_present_text_height), bold=1)
-
-        txt = forecast_font.render(day, True, text_color)
-        (txt_x, txt_y) = txt.get_size()
-        self.screen.blit(txt, (self.xmax *
-                               (subwindow_centers * c_times) - txt_x / 2,
-                               self.ymax * (subwindows_y_start_position +
-                                            line_spacing_gap * 0)))
-        if hasattr(data, 'temperatureLow'):
-            txt = forecast_font.render(
-                str(int(round(data.temperatureLow))) +
-                UNICODE_DEGREE +
-                ' / ' +
-                str(int(round(data.temperatureHigh))) +
-                UNICODE_DEGREE + get_temperature_letter(),
-                True, text_color)
-        else:
-            txt = forecast_font.render(
-                str(int(round(data.temperature))) +
-                UNICODE_DEGREE + get_temperature_letter(),
-                True, text_color)
-        (txt_x, txt_y) = txt.get_size()
-        self.screen.blit(txt, (self.xmax *
-                               (subwindow_centers * c_times) - txt_x / 2,
-                               self.ymax * (subwindows_y_start_position +
-                                            line_spacing_gap * 5)))
-        # rtxt = forecast_font.render('Rain:', True, lc)
-        # self.screen.blit(rtxt, (ro,self.ymax*(wy+gp*5)))
-        rptxt = rpfont.render(
-            str(int(round(data.precipProbability * 100))) + '%',
-            True, text_color)
-        (txt_x, txt_y) = rptxt.get_size()
-        self.screen.blit(rptxt, (self.xmax *
-                                 (subwindow_centers * c_times) - txt_x / 2,
-                                 self.ymax * (subwindows_y_start_position +
-                                              line_spacing_gap *
-                                              rain_percent_line_offset)))
-        icon = pygame.image.load(
-            icon_mapping(data.icon, self.icon_size)).convert_alpha()
-        (icon_size_x, icon_size_y) = icon.get_size()
-        if icon_size_y < 90:
-            icon_y_offset = (90 - icon_size_y) / 2
-        else:
-            icon_y_offset = config.LARGE_ICON_OFFSET
-
-        self.screen.blit(icon, (self.xmax *
-                                (subwindow_centers * c_times) -
-                                icon_size_x / 2,
-                                self.ymax *
-                                (subwindows_y_start_position +
-                                 line_spacing_gap
-                                 * 1.2) + icon_y_offset))
-
-    def disp_summary(self):
-        y_start_position = 0.444
-        conditions_text_height = 0.04
-        text_color = (255, 255, 255)
-        font_name = "freesans"
-
-        conditions_font = pygame.font.SysFont(
-            font_name, int(self.ymax * conditions_text_height), bold=1)
-        txt = conditions_font.render(self.weather.summary, True, text_color)
-        txt_x = txt.get_size()[0]
-        x = self.xmax * 0.27 - (txt_x * 1.02) / 2
-        self.screen.blit(txt, (x, self.ymax * y_start_position))
-
-    def disp_umbrella_info(self, umbrella_txt):
-        x_start_position = 0.52
-        y_start_position = 0.444
-        conditions_text_height = 0.04
-        text_color = (255, 255, 255)
-        font_name = "freesans"
-
-        conditions_font = pygame.font.SysFont(
-            font_name, int(self.ymax * conditions_text_height), bold=1)
-        txt = conditions_font.render(umbrella_txt, True, text_color)
-        self.screen.blit(txt, (
-            self.xmax * x_start_position,
-            self.ymax * y_start_position))
-
     def disp_weather(self):
         # Fill the screen with black
         self.screen.fill((0, 0, 0))
@@ -472,28 +210,30 @@ class MyDisplay:
         text_color = (255, 255, 255)
         font_name = "freesans"
 
-        self.draw_screen_border(line_color, xmin, lines)
+        draw.lines(self, line_color, xmin, lines)
         self.disp_time_date(font_name, text_color)
         self.disp_current_temp(font_name, text_color)
-        self.disp_summary()
-        self.display_conditions_line(
-            'Feels Like:', int(round(self.weather.apparentTemperature)),
-            True)
+        display.summary(self)
+        display.conditions_line(self,
+                                'Feels Like:', int(
+                                    round(self.weather.apparentTemperature)),
+                                True)
 
         try:
             wind_bearing = self.weather.windBearing
-            wind_direction = deg_to_compass(wind_bearing) + ' @ '
+            wind_direction = utils.deg_to_compass(wind_bearing) + ' @ '
         except AttributeError:
             wind_direction = ''
         wind_txt = wind_direction + str(
             int(round(self.weather.windSpeed))) + \
-            ' ' + get_windspeed_abbreviation()
-        self.display_conditions_line(
-            'Wind:', wind_txt, False, 1)
+            ' ' + utils.get_windspeed_abbreviation(config.UNITS)
+        display.conditions_line(self,
+                                'Wind:', wind_txt, False, 1)
 
-        self.display_conditions_line(
-            'Humidity:', str(int(round((self.weather.humidity * 100)))) + '%',
-            False, 2)
+        display.conditions_line(self,
+                                'Humidity:', str(
+                                    int(round((self.weather.humidity * 100)))) + '%',
+                                False, 2)
 
         # Skipping multiplier 3 (line 4)
 
@@ -501,13 +241,13 @@ class MyDisplay:
             umbrella_txt = 'Grab your umbrella!'
         else:
             umbrella_txt = 'No umbrella needed today.'
-        self.disp_umbrella_info(umbrella_txt)
+        display.umbrella_info(self, umbrella_txt)
 
         # Today
         today = self.weather.daily[0]
         today_string = "Today"
         multiplier = 1
-        self.display_subwindow(today, today_string, multiplier)
+        display.subwindow(self, today, today_string, multiplier)
 
         # counts from 0 to 2
         for future_day in range(3):
@@ -515,7 +255,7 @@ class MyDisplay:
             this_day_no = datetime.datetime.fromtimestamp(this_day.time)
             this_day_string = this_day_no.strftime("%A")
             multiplier += 2
-            self.display_subwindow(this_day, this_day_string, multiplier)
+            display.subwindow(self, this_day, this_day_string, multiplier)
 
         # Update the display
         pygame.display.update()
@@ -529,22 +269,23 @@ class MyDisplay:
         text_color = (255, 255, 255)
         font_name = "freesans"
 
-        self.draw_screen_border(line_color, xmin, lines)
+        draw.lines(self, line_color, xmin, lines)
         self.disp_time_date(font_name, text_color)
         self.disp_current_temp(font_name, text_color)
-        self.disp_summary()
-        self.display_conditions_line(
-            'Feels Like:', int(round(self.weather.apparentTemperature)),
-            True)
+        display.summary(self)
+        display.conditions_line(self,
+                                'Feels Like:', int(
+                                    round(self.weather.apparentTemperature)),
+                                True)
 
         try:
             wind_bearing = self.weather.windBearing
-            wind_direction = deg_to_compass(wind_bearing) + ' @ '
+            wind_direction = utils.deg_to_compass(wind_bearing) + ' @ '
         except AttributeError:
             wind_direction = ''
         wind_txt = wind_direction + str(
             int(round(self.weather.windSpeed))) + \
-            ' ' + get_windspeed_abbreviation()
+            ' ' + utils.get_windspeed_abbreviation(config.UNITS)
         self.display_conditions_line(
             'Wind:', wind_txt, False, 1)
 
@@ -558,7 +299,7 @@ class MyDisplay:
             umbrella_txt = 'Grab your umbrella!'
         else:
             umbrella_txt = 'No umbrella needed today.'
-        self.disp_umbrella_info(umbrella_txt)
+        display.umbrella_info(self, umbrella_txt)
 
         # Current hour
         this_hour = self.weather.hourly[0]
@@ -572,7 +313,7 @@ class MyDisplay:
             this_hour.time).strftime("%I"))
         this_hour_string = "{} {}".format(str(this_hour_12_int), ampm)
         multiplier = 1
-        self.display_subwindow(this_hour, this_hour_string, multiplier)
+        display.subwindow(self, this_hour, this_hour_string, multiplier)
 
         # counts from 0 to 2
         for future_hour in range(3):
@@ -587,7 +328,7 @@ class MyDisplay:
                 this_hour.time).strftime("%I"))
             this_hour_string = "{} {}".format(str(this_hour_12_int), ampm)
             multiplier += 2
-            self.display_subwindow(this_hour, this_hour_string, multiplier)
+            display.subwindow(self, this_hour, this_hour_string, multiplier)
 
         # Update the display
         pygame.display.update()
@@ -603,7 +344,7 @@ class MyDisplay:
             font_name, int(self.ymax * (0.5 - 0.15) * 0.3), bold=1)
         degree_txt = degree_font.render(UNICODE_DEGREE, True, text_color)
         (rendered_am_pm_x, rendered_am_pm_y) = degree_txt.get_size()
-        degree_letter = outside_temp_font.render(get_temperature_letter(),
+        degree_letter = outside_temp_font.render(utils.get_temperature_letter(config.UNITS),
                                                  True, text_color)
         (degree_letter_x, degree_letter_y) = degree_letter.get_size()
         # Position text
@@ -641,39 +382,6 @@ class MyDisplay:
         self.screen.blit(rendered_am_pm_string,
                          (full_time_string_x_position + rendered_time_x + 3,
                           self.time_date_small_y_position))
-
-    def draw_screen_border(self, line_color, xmin, lines):
-        # Draw Screen Border
-        # Top
-        pygame.draw.line(self.screen, line_color, (xmin, 0), (self.xmax, 0),
-                         lines)
-        # Left
-        pygame.draw.line(self.screen, line_color, (xmin, 0),
-                         (xmin, self.ymax), lines)
-        # Bottom
-        pygame.draw.line(self.screen, line_color, (xmin, self.ymax),
-                         (self.xmax, self.ymax), lines)
-        # Right
-        pygame.draw.line(self.screen, line_color, (self.xmax, 0),
-                         (self.xmax, self.ymax + 2), lines)
-        # Bottom of top box
-        pygame.draw.line(self.screen, line_color, (xmin, self.ymax * 0.15),
-                         (self.xmax, self.ymax * 0.15), lines)
-        # Bottom of middle box
-        pygame.draw.line(self.screen, line_color, (xmin, self.ymax * 0.5),
-                         (self.xmax, self.ymax * 0.5), lines)
-        # Bottom row, left vertical
-        pygame.draw.line(self.screen, line_color, (self.xmax * 0.25,
-                                                   self.ymax * 0.5),
-                         (self.xmax * 0.25, self.ymax), lines)
-        # Bottom row, center vertical
-        pygame.draw.line(self.screen, line_color, (self.xmax * 0.5,
-                                                   self.ymax * 0.15),
-                         (self.xmax * 0.5, self.ymax), lines)
-        # Bottom row, right vertical
-        pygame.draw.line(self.screen, line_color, (self.xmax * 0.75,
-                                                   self.ymax * 0.5),
-                         (self.xmax * 0.75, self.ymax), lines)
 
     ####################################################################
     def sPrint(self, text, font, x, line_number, text_color):
@@ -743,9 +451,11 @@ class MyDisplay:
         # leaving row 7 blank
 
         if in_daylight:
-            text = "Sunset in %d hrs %02d min" % stot(delta_seconds_til_dark)
+            text = "Sunset in %d hrs %02d min" % utils.seconds_to_hm(
+                delta_seconds_til_dark)
         else:
-            text = "Sunrise in %d hrs %02d min" % stot(seconds_til_daylight)
+            text = "Sunrise in %d hrs %02d min" % utils.seconds_to_hm(
+                seconds_til_daylight)
         self.sPrint(text, small_font, self.xmax * 0.05, 8, text_color)
 
         # leaving row 9 blank
@@ -811,7 +521,8 @@ def daylight(weather):
 
     # Compute the delta time (in seconds) between sunrise and set.
     dDaySec = tSunset - tSunrise        # timedelta in seconds
-    (dayHrs, dayMin) = stot(dDaySec)    # split into hours and minutes.
+    # split into hours and minutes.
+    (dayHrs, dayMin) = utils.seconds_to_hm(dDaySec)
 
     return (inDaylight, dayHrs, dayMin, seconds_til_daylight,
             delta_seconds_til_dark)
