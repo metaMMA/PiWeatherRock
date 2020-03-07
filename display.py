@@ -65,7 +65,7 @@ for plugin in config.PLUGINS:
     screen_info[plugin]['count'] = 0
     screen_info[plugin]['pause'] = eval(plugin + '_config.PAUSE')
     screen_info[plugin]['last_update_time'] = 0
-mode = 'daily'  # Default to weather mode. Showing daily weather first.
+mode = config.PLUGINS[0]  # Set plugin screen. Default: 'daily'.
 reset_counter(mode, screen_info)  # Update screen count variables
 running = True             # Stay running while True
 seconds = 0                # Seconds placeholder to pace display.
@@ -151,7 +151,9 @@ class MyDisplay:
         self.time_date_small_y_position = 18
         self.start_time = round(time.time())
 
-    def disp_time_date(self, font_name, text_color):
+    def disp_header(self, font_name, text_color, text):
+        if not text:
+            return
         # Time & Date
         time_date_font = pygame.font.SysFont(
             font_name, int(self.ymax * self.time_date_text_height), bold=1)
@@ -159,24 +161,32 @@ class MyDisplay:
         small_font = pygame.font.SysFont(
             font_name,
             int(self.ymax * self.time_date_small_text_height), bold=1)
+        if text == 'time-date':
+            time_string = time.strftime("%a, %b %d   %I:%M", time.localtime())
+            am_pm_string = time.strftime(" %p", time.localtime())
 
-        time_string = time.strftime("%a, %b %d   %I:%M", time.localtime())
-        am_pm_string = time.strftime(" %p", time.localtime())
+            rendered_time_string = time_date_font.render(time_string, True,
+                                                         text_color)
+            (rendered_time_x, rendered_time_y) = rendered_time_string.get_size()
+            rendered_am_pm_string = small_font.render(am_pm_string, True,
+                                                      text_color)
+            (rendered_am_pm_x, rendered_am_pm_y) = rendered_am_pm_string.get_size()
 
-        rendered_time_string = time_date_font.render(time_string, True,
-                                                     text_color)
-        (rendered_time_x, rendered_time_y) = rendered_time_string.get_size()
-        rendered_am_pm_string = small_font.render(am_pm_string, True,
-                                                  text_color)
-        (rendered_am_pm_x, rendered_am_pm_y) = rendered_am_pm_string.get_size()
-
-        full_time_string_x_position = self.xmax / 2 - (rendered_time_x +
-                                                       rendered_am_pm_x) / 2
-        self.screen.blit(rendered_time_string, (full_time_string_x_position,
-                                                self.time_date_y_position))
-        self.screen.blit(rendered_am_pm_string,
-                         (full_time_string_x_position + rendered_time_x + 3,
-                          self.time_date_small_y_position))
+            full_time_string_x_position = self.xmax / 2 - (rendered_time_x +
+                                                           rendered_am_pm_x) / 2
+            self.screen.blit(rendered_time_string, (full_time_string_x_position,
+                                                    self.time_date_y_position))
+            self.screen.blit(rendered_am_pm_string,
+                             (full_time_string_x_position + rendered_time_x + 3,
+                              self.time_date_small_y_position))
+        else:
+            rendered_header = time_date_font.render(text, True, text_color)
+            (header_x, header_y) = rendered_header.get_size()
+            if header_x > 0.9 * self.xmax:
+                pad = self.xmax * 0.45
+            else:
+                pad = header_x / 2
+            self.screen.blit(rendered_header, ((self.xmax / 2) - pad, self.time_date_y_position))
 
     # Save a jpg image of the screen.
     ####################################################################
@@ -208,7 +218,7 @@ syslog.syslog('Retreiving intial weather data')
 screen_info['daily']['last_update_time'] = my_disp.get_forecast(0)
 screen_info['hourly']['last_update_time'] = screen_info[
     'daily']['last_update_time']
-if screen_info['daily']['last_update_time'] is False:
+if not screen_info['daily']['last_update_time']:
     print('Error: no data from darksky.net.')
     running = False
 syslog.syslog('Successfully retreived intial weather data.')
@@ -219,7 +229,7 @@ for plugin in config.PLUGINS:
         syslog.syslog('Retreiving intial %s data' % plugin)
         last_update_time = eval(f"my_disp.get_{plugin}(0)")
         screen_info[plugin]['last_update_time'] = last_update_time
-        if isinstance(last_update_time, int):
+        if last_update_time:
             syslog.syslog('Successfully retreived intial %s data' % plugin)
         else:
             syslog.syslog(
@@ -286,25 +296,20 @@ while running:
             mode = new_screen
             screen_info[mode]['count'] += 1
 
-    try:
-        if mode == 'daily' or mode == 'hourly' or mode == 'info':
-            eval(f"my_disp.disp_{mode}"
-                 f"(screen_info['daily']['last_update_time'])")
-            last_update_time = eval(f"my_disp.get_{mode}"
-                                    f"(screen_info['daily']"
-                                    f"['last_update_time'])")
-            screen_info['daily']['last_update_time'] = last_update_time
-            screen_info['hourly']['last_update_time'] = last_update_time
-        else:
-            eval(f"my_disp.disp_{mode}"
-                 f"(screen_info[mode]['last_update_time'])")
-            last_update_time = eval(
-                f"my_disp.get_{mode}(screen_info[mode]['last_update_time'])")
-            screen_info[mode]['last_update_time'] = last_update_time
-    except ValueError:  # includes simplejson.decoder.JSONDecodeError
-        print("Decoding JSON has failed", sys.exc_info()[0])
-    except BaseException:
-        print("Unexpected error:", sys.exc_info()[0])
+    if mode == 'daily' or mode == 'hourly' or mode == 'info':
+        eval(f"my_disp.disp_{mode}"
+                f"(screen_info['daily']['last_update_time'])")
+        last_update_time = eval(f"my_disp.get_{mode}"
+                                f"(screen_info['daily']"
+                                f"['last_update_time'])")
+        screen_info['daily']['last_update_time'] = last_update_time
+        screen_info['hourly']['last_update_time'] = last_update_time
+    else:
+        eval(f"my_disp.disp_{mode}"
+                f"(screen_info[mode]['last_update_time'])")
+        last_update_time = eval(
+            f"my_disp.get_{mode}(screen_info[mode]['last_update_time'])")
+        screen_info[mode]['last_update_time'] = last_update_time
 
     # Loop timer.
     pygame.time.wait(1000)
