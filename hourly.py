@@ -55,7 +55,7 @@ class Hourly(Weather):
         font_name = "freesans"
 
         self.draw_screen_border(line_color, xmin, lines)
-        self.disp_time_date(font_name, text_color)
+        self.disp_header(font_name, text_color, 'time-date')
         self.disp_current_temp(font_name, text_color)
         self.disp_summary()
         self.display_conditions_line(
