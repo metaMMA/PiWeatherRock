@@ -1,0 +1,11 @@
+PAUSE = 6
+UPDATE_FREQ = 10
+FEED_LIST = ['https://www.linuxjournal.com/node/feed', 'https://linuxsecurity.com/linuxsecurity_hybrid.xml', 'http://rss.cnn.com/rss/cnn_topstories.rss']
+COMBINE_FEEDS = True
+UPDATE_FREQ = 10
+COLUMNS = 1
+ROWS = 10
+NO_HEADER = False
+HEADER_TYPE = 'custom' # can be either 'time', 'feed name' (the first feed in the list), or 'custom'
+HEADER_SIZE = 10 # percentage of screen height
+CUSTOM = 'My Test Feed is Awesome'
