@@ -78,12 +78,11 @@ class Speedtest:
         if speedtest_config.SPEEDTEST_ON_PI:
             if ((time.time() -
                  last_update_time) > speedtest_config.UPDATE_FREQ):
-                last_update_time = round(time.time())
                 syslog.syslog('Running speedtest on Pi.')
                 subprocess.Popen(["/bin/bash",
                                   "/home/pi/PiWeatherRock/scripts/speedtest.sh"])
                 if initial:
-                    return last_update_time
+                    return round(time.time())
         else:
             if initial:
                 # Make sure speedtest results from mounted location exist
@@ -95,7 +94,7 @@ class Speedtest:
                     return round(time.time())
                 else:
                     syslog.syslog('No speedtest results found.')
-                    return False
+                    return 0
 
         # Move or remove old test results
         src = '/home/pi/PiWeatherRock/speedtest/queue/'
@@ -164,7 +163,7 @@ class Speedtest:
                          (self.xmax * 0.5, self.ymax * 0.85), lines)
 
         # Draw date and time at top of screen
-        self.disp_time_date(font_name, text_color)
+        self.disp_header(font_name, text_color, 'time-date')
 
         # Draw ping at the bottom of the screen
         ping_font = pygame.font.SysFont(
