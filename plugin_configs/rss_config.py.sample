@@ -1,0 +1,25 @@
+# Number of seconds to show RSS screen. Default is 15.
+PAUSE = 15
+
+# Number of seconds between checking for RSS feed updates.
+# Default is 600 (10 minutes).
+UPDATE_FREQ = 600
+
+# List of feeds to show. Enclose the feed URL in quotation marks, and separate with a comma. Samples listed below.
+FEED_LIST = ['https://www.linuxjournal.com/node/feed', 'https://linuxsecurity.com/linuxsecurity_hybrid.xml']
+
+# Number of columns to show on the RSS screen
+COLUMNS = 1
+
+# Number or rows to show on RSS screen.
+ROWS = 10
+
+# Set this to True to show no header at the top of the screen.
+NO_HEADER = False
+
+# If NO_HEADER is set to False, this defaults to the time/date shown on the weather screens. 
+# If you want a custom header, put 'custom' as the header type.
+HEADER_TYPE = 'custom'
+
+# If HEADER_TYPE is set to 'custom', the following will be shown at the top of the RSS screen.
+CUSTOM = 'My Awesome Feed Header'
