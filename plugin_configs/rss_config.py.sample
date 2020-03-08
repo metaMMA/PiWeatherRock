@@ -23,3 +23,6 @@ HEADER_TYPE = 'custom'
 
 # If HEADER_TYPE is set to 'custom', the following will be shown at the top of the RSS screen.
 CUSTOM_HEADER = 'My Awesome Feed Header'
+
+# If True, will wrap long RSS titles onto a second line.
+WRAP_TEXT = False
